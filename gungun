@@ -2,88 +2,160 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>간단한 총게임</title>
+<title>긴박한 총게임</title>
 <style>
-    body {
-        margin: 0;
-        background: black;
-        color: white;
-        text-align: center;
-        font-family: Arial;
-    }
-    canvas {
-        background: #222;
-        display: block;
-        margin: 20px auto;
-        cursor: crosshair;
-    }
+body {
+    margin: 0;
+    background: black;
+    color: white;
+    text-align: center;
+    font-family: Arial, sans-serif;
+}
+canvas {
+    background: #111;
+    display: block;
+    margin: 20px auto;
+    cursor: crosshair;
+}
+#info {
+    font-size: 18px;
+}
 </style>
 </head>
 <body>
 
-<h2>🔫 간단한 총게임</h2>
-<p>마우스로 조준하고 클릭해서 적을 맞추세요!</p>
-<canvas id="game" width="600" height="400"></canvas>
-<p id="score">점수: 0</p>
+<h2>🔫 타임 어택 슈팅</h2>
+<div id="info">
+    ⏱️ 시간: <span id="time">30</span>s |
+    🔫 총알: <span id="ammo">10</span> |
+    🎯 점수: <span id="score">0</span>
+</div>
+
+<canvas id="game" width="700" height="400"></canvas>
 
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
-const scoreText = document.getElementById("score");
 
-let enemies = [];
+let targets = [];
+let bullets = [];
+
 let score = 0;
+let timeLeft = 30;
 
-// 적 생성
-function spawnEnemy() {
-    enemies.push({
-        x: Math.random() * 550,
-        y: Math.random() * 350,
-        size: 30
+let maxAmmo = 10;
+let ammo = maxAmmo;
+let reloading = false;
+
+// 표적 생성
+function spawnTarget() {
+    targets.push({
+        x: Math.random() * 650 + 25,
+        y: Math.random() * 250 + 25,
+        r: 20
     });
 }
 
-// 적 그리기
-function drawEnemies() {
-    ctx.fillStyle = "red";
-    for (let e of enemies) {
-        ctx.fillRect(e.x, e.y, e.size, e.size);
-    }
-}
+// 총알 발사
+canvas.addEventListener("click", e => {
+    if (ammo <= 0 || reloading || timeLeft <= 0) return;
 
-// 화면 갱신
-function update() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawEnemies();
-    requestAnimationFrame(update);
-}
+    ammo--;
+    document.getElementById("ammo").innerText = ammo;
 
-// 클릭 시 총 발사
-canvas.addEventListener("click", function(e) {
     const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
 
-    for (let i = 0; i < enemies.length; i++) {
-        let en = enemies[i];
-        if (
-            mouseX > en.x &&
-            mouseX < en.x + en.size &&
-            mouseY > en.y &&
-            mouseY < en.y + en.size
-        ) {
-            enemies.splice(i, 1);
-            score++;
-            scoreText.innerText = "점수: " + score;
-            break;
-        }
-    }
+    bullets.push({
+        x: canvas.width / 2,
+        y: canvas.height,
+        tx: mx,
+        ty: my
+    });
+
+    if (ammo === 0) reload();
 });
 
-// 적 주기적으로 생성
-setInterval(spawnEnemy, 1000);
+// 재장전
+function reload() {
+    reloading = true;
+    setTimeout(() => {
+        ammo = maxAmmo;
+        reloading = false;
+        document.getElementById("ammo").innerText = ammo;
+    }, 1000);
+}
+
+// 거리 계산
+function distance(x1, y1, x2, y2) {
+    return Math.sqrt((x1-x2)**2 + (y1-y2)**2);
+}
+
+// 게임 업데이트
+function update() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 표적
+    for (let t of targets) {
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2);
+        ctx.fillStyle = "lime";
+        ctx.fill();
+    }
+
+    // 총알
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        let b = bullets[i];
+        b.x += (b.tx - b.x) * 0.2;
+        b.y += (b.ty - b.y) * 0.2;
+
+        ctx.fillStyle = "yellow";
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 충돌 체크
+        for (let j = targets.length - 1; j >= 0; j--) {
+            if (distance(b.x, b.y, targets[j].x, targets[j].y) < targets[j].r) {
+                targets.splice(j, 1);
+                bullets.splice(i, 1);
+                score++;
+                document.getElementById("score").innerText = score;
+                break;
+            }
+        }
+    }
+
+    if (timeLeft > 0) requestAnimationFrame(update);
+    else endGame();
+}
+
+// 시간 감소
+setInterval(() => {
+    if (timeLeft > 0) {
+        timeLeft--;
+        document.getElementById("time").innerText = timeLeft;
+    }
+}, 1000);
+
+// 표적 주기적 생성
+setInterval(() => {
+    if (timeLeft > 0) spawnTarget();
+}, 800);
+
+// 게임 종료
+function endGame() {
+    ctx.fillStyle = "red";
+    ctx.font = "40px Arial";
+    ctx.fillText("GAME OVER", 230, 200);
+    ctx.font = "20px Arial";
+    ctx.fillText("최종 점수: " + score, 290, 240);
+}
+
 update();
 </script>
 
 </body>
 </html>
+
